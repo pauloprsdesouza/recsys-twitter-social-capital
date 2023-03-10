@@ -9,8 +9,8 @@ from nltk.stem import SnowballStemmer
 import datetime
 import emoji
 import math
+from pytwitter.models import User, Tweet, TweetEntities, TweetEntitiesUrl, TweetPublicMetrics, TweetEntitiesMention, TweetEntitiesHashtag, TweetEntitiesAnnotation
 from pytwitter import Api
-from pytwitter.models import User, Tweet
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import torch
@@ -20,10 +20,11 @@ nltk.download('stopwords')
 nltk.download('punkt')
 nltk.download('wordnet')
 nltk.download('omw')
+nltk.download('omw-1.4')
 nltk.download('averaged_perceptron_tagger')
 
-stemmer = SnowballStemmer('portuguese')
-stop_words = set(stopwords.words('portuguese'))
+stemmer = SnowballStemmer('english')
+stop_words = set(stopwords.words('english'))
 
 api = Api(bearer_token="AAAAAAAAAAAAAAAAAAAAAMhqlAEAAAAA4Pqzn354Z5nlkP5lKaW98vzlVlA%3D7GIA03xacVKdFYTFg7qmgvWTZThpa2FFd4SNPUqP7uPK7Xjue5")
 
@@ -67,7 +68,6 @@ def preprocess_tweet(text):
         lemmas.append
 
     # Disambiguate polysemous words
-    
     tokens = disambiguate_polysemous_words(tokens)
 
     # Expand synonyms
@@ -93,6 +93,7 @@ def disambiguate_polysemous_words(tokens):
             disambiguated_tokens.append(token)
 
     return disambiguated_tokens
+
 
 def expand_synonyms(tokens):
     # Expand synonyms using WordNet
@@ -126,7 +127,6 @@ def calculate_diversity_score(words):
     diversity_score = num_unique_words / num_words
 
     return diversity_score
-
 
 def calculate_recency_score(created_at):
     # Calculate the recency score of the tweet based on its age
@@ -220,44 +220,13 @@ def calculate_reputation(user: User):
     # Return influence and reputation scores
     return normalized_reputation_score
 
-def generate_recommendations():
-    public_tweets = api.search_tweets(query="lula lang:pt has:hashtags -is:retweet has:media", expansions=["referenced_tweets.id.author_id","in_reply_to_user_id","attachments.media_keys","author_id","entities.mentions.username"], 
-                                  user_fields=["created_at","entities","id","location","name","pinned_tweet_id","profile_image_url","protected","public_metrics","url","username","verified"],
-                                  tweet_fields=["attachments","author_id","context_annotations","created_at","entities","geo","in_reply_to_user_id","lang","public_metrics","reply_settings","source"], max_results=100, query_type='recent')
-
-    usersById = {}
-    for user in public_tweets.includes.users:
-       influence_score = calculate_influence(user)
-       reputation_score = calculate_reputation(user)
-       usersById[user.id] = {"influence_score": influence_score, "reputation_score": reputation_score}
-
-    for tweet in public_tweets.data:
-        user_id = tweet.author_id
-        if user_id not in usersById:
-            user = api.get_user(user_id)
-            influence_score = calculate_influence(user)
-            reputation_score = calculate_reputation(user)
-            usersById[user_id] = {"influence_score": influence_score, "reputation_score": reputation_score}
-
-    ranking = {}
-    for tweet in public_tweets.data:
-        social_capital_score = calculate_social_capital_score(tweet, usersById)
-        ranking[tweet.id] = social_capital_score
-
-    ranked = dict(sorted(ranking.items(), key=lambda item: item[1]['score'], reverse=True))    
-    
-    for tweetId in ranked: 
-        print(ranking[tweetId]['score'], ranking[tweetId]['tweet'].id + "    ----  " + ranking[tweetId]['tweet'].text)
-    
-    return ranked
-
 def user_strength_score(user, usersById):
     influence_score = usersById[user]["influence_score"]
     reputation_score = usersById[user]["reputation_score"]
     
     return reputation_score * influence_score
 
-def calculate_social_capital_score(tweet: Tweet, usersById):
+def calculate_social_capital_score(tweet: Tweet, usersById, usersByUserName):
     # Extract relevant information from the tweet
     text = tweet.text
     attachments = tweet.attachments
@@ -266,6 +235,9 @@ def calculate_social_capital_score(tweet: Tweet, usersById):
 
     # Preprocess tweet text
     tokens = preprocess_tweet(text)
+
+    # Calculate sentiment score
+    sentiment_score = get_sentiment_score_v2(text)
 
     # Calculate diversity score
     diversity_score = calculate_diversity_score(tokens)
@@ -281,20 +253,62 @@ def calculate_social_capital_score(tweet: Tweet, usersById):
     retweets = public_metrics.retweet_count
     replies = public_metrics.reply_count
     impressions_count = public_metrics.impression_count
-    hashtags = len(re.findall(r'#(\w+)', text))
-    
-    mentions_strenth = 0
-    
+    num_hashtags = len(tweet.entities.hashtags)
+    num_urls = len(tweet.entities.urls)
+
+    mention_users_strenght_score = 0
     if tweet.entities.mentions is not None:
-        for mention in tweet.entities.mentions:
-            mentions_strenth +=  user_strength_score(mention.username, usersById)
-    
+      for mention in tweet.entities.mentions:
+        mention_users_strenght_score += user_strength_score(mention.username)
+
     num_media = 0
     if attachments is not None and attachments.media_keys is not None:
         num_media = len(attachments.media_keys)
     
-    social_capital_score = (user_strength_score(tweet.author_id, usersById) + (retweets + likes + replies + impressions_count + num_media + diversity_score + hashtags + len(tokens) + context_score)) * recency_score
+    social_capital_score = ((user_strength_score(tweet.author_id) + retweets + likes + replies + impressions_count + num_media + num_hashtags + num_urls + diversity_score + mention_users_strenght_score + len(tokens) + context_score) * recency_score)
 
     return {'tweet': tweet, 'score': social_capital_score }
 
-generate_recommendations()
+def get_initialization():
+    public_tweets = api.search_tweets(query="recommender systems lang:en has:hashtags -is:retweet has:media", expansions=["referenced_tweets.id.author_id","in_reply_to_user_id","attachments.media_keys","author_id","entities.mentions.username"], 
+                                  user_fields=["created_at","entities","id","location","name","pinned_tweet_id","profile_image_url","protected","public_metrics","url","username","verified"],
+                                  tweet_fields=["attachments","author_id","context_annotations","created_at","entities","geo","in_reply_to_user_id","lang","public_metrics","reply_settings","source"], max_results=50)
+
+    public_tweets.data[0].text = "just read an interesting article about the importance of social capital in recommender systems. It's amazing how much impact a user's social connections can have on the quality of recommendations they receive! #socialcapital #recommendations #AI"
+    public_tweets.data[1].text = "Excited to share our latest research on the role of social capital in improving recommender systems! Our findings show that incorporating user social networks can lead to significant improvements in recommendation quality. #research #socialcapital #recommendations"
+
+    usersById = {}
+    usersByUserName = {}
+    for user in public_tweets.includes.users:
+       influence_score = calculate_influence(user)
+       reputation_score = calculate_reputation(user)
+       usersById[user.id] = {"influence_score": influence_score, "reputation_score": reputation_score}
+       usersByUserName[user.username] = {"influence_score": influence_score, "reputation_score": reputation_score}
+
+    for tweet in public_tweets.data:
+        user_id = tweet.author_id
+        if user_id not in usersById:
+            user = api.get_user(user_id)
+            influence_score = calculate_influence(user)
+            reputation_score = calculate_reputation(user)
+            usersById[user_id] = {"influence_score": influence_score, "reputation_score": reputation_score}
+            usersByUserName[user.username] = {"influence_score": influence_score, "reputation_score": reputation_score}
+    
+    return public_tweets, usersById, usersByUserName
+
+def generate_recommendations(public_tweets, usersById, usersByUserName):
+    ranking = {}
+    for tweet in public_tweets.data:
+        social_capital_score = calculate_social_capital_score(tweet, usersById, usersByUserName)
+        ranking[tweet.id] = social_capital_score
+
+    ranked = dict(sorted(ranking.items(), key=lambda item: item[1]['score'], reverse=True))    
+    
+    for tweetId in ranked: 
+        print(ranking[tweetId]['score'], ranking[tweetId]['tweet'].id + "    ----  " + ranking[tweetId]['tweet'].text)
+    
+    return ranked
+
+public_tweets, usersById, usersByUserName = get_initialization()
+
+generate_recommendations(public_tweets, usersById, usersByUserName)
