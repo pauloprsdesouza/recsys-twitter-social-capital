@@ -234,6 +234,8 @@ def calculate_social_capital_score(tweet: Tweet, usersById, usersByUserName):
     created_at = tweet.created_at
 
     # Preprocess tweet text
+    
+    
     tokens = preprocess_tweet(text)
 
     # Calculate sentiment score
