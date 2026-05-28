@@ -1,33 +1,27 @@
-# Twitter Recommendation System
+# Recsys Twitter Social Capital
 
-## Project Overview
+[![License](https://img.shields.io/github/license/pauloprsdesouza/recsys-twitter-social-capital)](./LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/pauloprsdesouza/recsys-twitter-social-capital)](https://github.com/pauloprsdesouza/recsys-twitter-social-capital/commits/main)
+[![Top Language](https://img.shields.io/github/languages/top/pauloprsdesouza/recsys-twitter-social-capital)](https://github.com/pauloprsdesouza/recsys-twitter-social-capital)
 
-This project is a Twitter recommendation system that provides suggestions based on the analysis of tweets and user metrics. The system evaluates the influence and reputation of users to generate recommendations, leveraging advanced NLP techniques and BERT models for tweet analysis.
+Research-oriented implementation for recommendation approaches using social-capital signals in Twitter-like environments.
 
-## Files & Modules
+## Tech Stack
+- Python
+- Data science and recommendation workflows
 
-### 1. main.py
+## Architecture
+- Repository organized for experimentation, prototyping, and result analysis.
+- Code and artifacts focus on social signals, ranking behavior, and recommendation quality.
 
-The entry point for the application. Initializes the `Recommender` class and prints generated recommendations.
+## Quick Start
+1. Create a Python virtual environment.
+2. Install dependencies defined by the repository.
+3. Run experiment scripts/notebooks according to project flow.
 
-### 2. Recommender.py
+## Validation
+- Reproduce experiments and compare recommendation outputs.
+- Track metrics relevant to ranking and personalization quality.
 
-Contains the main recommendation logic, including:
-- Fetching tweets and user details using the `pytwitter` library.
-- Calculating influence and reputation scores for users.
-- Generating recommendations based on user metrics.
-
-### 3. TweetAnalyzer.py
-
-Handles the NLP and tweet analysis aspects, including:
-- Preprocessing of tweets using the `nltk` library and BERT tokenizer.
-- Text analysis using TF-IDF vectorization and BERT models.
-- Additional utilities for text processing, such as stemming and lemmatization.
-
-## Setup & Installation
-
-1. Clone the repository.
-2. Install the required Python packages:
-
-```bash
-pip install pytwitter nltk transformers
+## Contributing
+See `CONTRIBUTING.md` for contribution and PR guidelines.
